@@ -11,12 +11,18 @@ open! Core
    - resources that are external to Wikipedia
    - page headers
 
-   One nice think about Wikipedia is that stringent content moderation results in
+   One nice thing about Wikipedia is that stringent content moderation results in
    uniformity in article format. We can expect that all Wikipedia article links parsed
    from a Wikipedia page will have the form "/wiki/<TITLE>". *)
 let get_linked_articles contents : string list =
-  ignore (contents : string);
-  failwith "TODO"
+  let open Soup in
+  parse contents
+  $$ "a"
+  |> to_list
+  |> List.map ~f:(fun a ->
+    match attribute "href" a with
+    | None -> failwith "Should be href attribute"
+    | Some a -> a |> String.strip)
 ;;
 
 let%expect_test "get_linked_articles" =
