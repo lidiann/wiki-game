@@ -1,5 +1,13 @@
 open! Core
 
+let get_text_from_node node =
+  let open Soup in
+  match texts node with
+  | [ text ] -> text
+  | contents ->
+    raise_s [%message "Unexpected texts" (contents : string list)]
+;;
+
 (* [get_credits] should take the contents of an IMDB page for an actor and return a list
    of strings containing that actor's main credits. *)
 let get_credits contents : string list =
@@ -11,13 +19,9 @@ let get_credits contents : string list =
     match attribute "class" anchor with
     | None -> false
     | Some class_name ->
-      if
-        String.equal class_name "ipc-primary-image-list-card__title"
-        (*The class assoc. with the Known For movie titles*)
-      then true
-      else false)
-  |> List.map ~f:(fun title ->
-    texts title |> String.concat ~sep:"" |> String.strip)
+      let class_name_for_credits = "ipc-primary-image-list-card__title" in
+      String.equal class_name class_name_for_credits)
+  |> List.map ~f:get_text_from_node
 ;;
 
 let%expect_test "get_credits" =
