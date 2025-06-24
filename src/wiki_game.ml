@@ -15,15 +15,23 @@ open! Core
    uniformity in article format. We can expect that all Wikipedia article links parsed
    from a Wikipedia page will have the form "/wiki/<TITLE>". *)
 let get_linked_articles contents : string list =
+  let does_not_have_namespace link =
+    match Wikipedia_namespace.namespace link with None -> true | _ -> false
+  in
   let open Soup in
   parse contents
   $$ "a"
   |> to_list
-  |> List.map ~f:(fun a ->
-    match attribute "href" a with
-    | None -> failwith "Should be href attribute"
-    | Some a -> a |> String.strip)
+  |> List.filter_map ~f:(fun anchor ->
+    match attribute "href" anchor with
+    | None -> None
+    | Some link -> Some (link |> String.strip))
+  |> List.filter ~f:(fun link -> String.is_prefix link ~prefix:"/wiki/")
+  |> List.filter ~f:does_not_have_namespace
+  |> List.dedup_and_sort ~compare:String.ascending
 ;;
+
+(* Still need to filter by links we actually want. *)
 
 let%expect_test "get_linked_articles" =
   let contents =
