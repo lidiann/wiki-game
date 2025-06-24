@@ -31,8 +31,6 @@ let get_linked_articles contents : string list =
   |> List.dedup_and_sort ~compare:String.ascending
 ;;
 
-(* Still need to filter by links we actually want. *)
-
 let%expect_test "get_linked_articles" =
   let contents =
     File_fetcher.fetch_exn
