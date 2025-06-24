@@ -11,7 +11,9 @@ let get_credits contents : string list =
     match attribute "class" anchor with
     | None -> false
     | Some class_name ->
-      if String.equal class_name "ipc-primary-image-list-card__title"
+      if
+        String.equal class_name "ipc-primary-image-list-card__title"
+        (*The class assoc. with the Known For movie titles*)
       then true
       else false)
   |> List.map ~f:(fun title ->
