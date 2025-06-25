@@ -56,6 +56,50 @@ let print_links_command =
         List.iter (get_linked_articles contents) ~f:print_endline]
 ;;
 
+module Article = struct
+  type t =
+    { title : string
+    ; url : string
+    }
+  [@@deriving sexp, compare]
+end
+
+module Network = struct
+  module Connection = struct
+    module T = struct
+      type t = Article.t * Article.t [@@deriving compare, sexp]
+    end
+
+    include Comparable.Make (T)
+
+    let rec make_article_pairs_from_list
+              (url : string)
+              (depth : int)
+              (url_pairs : (string * string) list)
+      =
+      ignore url;
+      ignore depth;
+      ignore url_pairs;
+      failwith "TODO"
+    ;;
+
+    let of_string s depth =
+      ignore depth;
+      let list_of_links = get_linked_articles s in
+      ignore list_of_links;
+      failwith "TODO"
+    ;;
+  end
+
+  type t = Connection.Set.t [@@deriving sexp_of]
+
+  let of_contents contents depth =
+    ignore contents;
+    ignore depth;
+    failwith "TODO"
+  ;;
+end
+
 (* [visualize] should explore all linked articles up to a distance of [max_depth] away
    from the given [origin] article, and output the result as a DOT file. It should use the
    [how_to_fetch] argument along with [File_fetcher] to fetch the articles so that the
