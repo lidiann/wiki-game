@@ -1,0 +1,2 @@
+I-5,Seattle,Portland,Los Angeles,San Diego
+I-10,Los Angeles,Phoenix,Tucson
