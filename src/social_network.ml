@@ -34,7 +34,9 @@ module Network = struct
              consider the connection between b and a. *)
           [ a, b; b, a ]
         | None ->
-          printf "ERROR: Could not parse line as connection; dropping. %s\n" s;
+          printf
+            "ERROR: Could not parse line as connection; dropping. %s\n"
+            s;
           [])
     in
     Connection.Set.of_list connections
@@ -91,8 +93,8 @@ let visualize_command =
   let open Command.Let_syntax in
   Command.basic
     ~summary:
-      "parse a file listing friendships and generate a graph visualizing the social \
-       network"
+      "parse a file listing friendships and generate a graph visualizing \
+       the social network"
     [%map_open
       let input_file =
         flag
@@ -112,16 +114,35 @@ let visualize_command =
           (* [G.add_edge] auomatically adds the endpoints as vertices in the graph if
              they don't already exist. *)
           G.add_edge graph person1 person2);
-        Dot.output_graph (Out_channel.create (File_path.to_string output_file)) graph;
+        Dot.output_graph
+          (Out_channel.create (File_path.to_string output_file))
+          graph;
         printf !"Done! Wrote dot file to %{File_path}\n%!" output_file]
 ;;
 
 (* [find_friend_group network ~person] returns a list of all people who are mutually
    connected to the provided [person] in the provided [network]. *)
 let find_friend_group network ~person : Person.t list =
-  ignore (network : Network.t);
-  ignore (person : Person.t);
-  failwith "TODO"
+  let graph = G.create () in
+  Set.iter network ~f:(fun (person1, person2) ->
+    G.add_edge graph person1 person2);
+  let visited = Person.Hash_set.create () in
+  let to_visit = Queue.create () in
+  Queue.enqueue to_visit person;
+  let rec traverse () =
+    match Queue.dequeue to_visit with
+    | None -> ()
+    | Some current_node ->
+      if not (Hash_set.mem visited current_node)
+      then (
+        Hash_set.add visited current_node;
+        let adjacent_nodes = G.succ graph current_node in
+        List.iter adjacent_nodes ~f:(fun next_node ->
+          Queue.enqueue to_visit next_node));
+      traverse ()
+  in
+  traverse ();
+  Hash_set.to_list visited
 ;;
 
 let find_friend_group_command =
