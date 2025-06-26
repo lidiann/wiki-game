@@ -70,6 +70,10 @@ let get_title_from_contents contents =
   parse contents $ "title" |> R.leaf_text
 ;;
 
+module Articles_Links = struct
+  type t = string * string list [@@deriving compare, sexp]
+end
+
 module Article = struct
   type t =
     { title : string
@@ -91,15 +95,33 @@ module Network = struct
     end
 
     include Comparable.Make (T)
-
-    let make_connections_from_list = ()
+    include Hash_set.Make (Articles_Links)
 
     let get_pairs_of_linked_articles origin ~how_to_fetch depth =
       ignore origin;
       ignore how_to_fetch;
       ignore depth;
-      failwith "TODO"
+      let visited = Articles_Links.Hash_set.create () in
+      let to_visit = Queue.create () in
+      Queue.enqueue to_visit origin;
+      let rec traverse layer =
+        if Int.equal 0 layer || Option.is_none (Queue.dequeue to_visit)
+        then ()
+        else (
+          let current_node = Option.value_exn (Queue.dequeue to_visit) in
+          let adjacent_nodes =
+            get_linked_articles
+              (get_contents_from_url current_node ~how_to_fetch)
+          in
+          Hash_set.add visited (current_node, adjacent_nodes);
+          List.iter adjacent_nodes ~f:(fun next_node ->
+            Queue.enqueue to_visit next_node);
+          traverse (layer - 1))
+      in
+      traverse depth
     ;;
+
+    (* pairs_of_articles *)
 
     let of_string s =
       ignore s;
