@@ -56,12 +56,32 @@ let print_links_command =
         List.iter (get_linked_articles contents) ~f:print_endline]
 ;;
 
+let get_contents_from_url
+      (url : string)
+      ~(how_to_fetch : File_fetcher.How_to_fetch.t)
+  =
+  match how_to_fetch with
+  | Local path -> File_fetcher.fetch_exn (Local path) ~resource:url
+  | Remote -> File_fetcher.fetch_exn Remote ~resource:url
+;;
+
+let get_title_from_contents contents =
+  let open Soup in
+  parse contents $ "title" |> R.leaf_text
+;;
+
 module Article = struct
   type t =
     { title : string
     ; url : string
     }
   [@@deriving sexp, compare]
+
+  let make_into_article url ~how_to_fetch =
+    let contents = get_contents_from_url url ~how_to_fetch in
+    let title = get_title_from_contents contents in
+    { title; url }
+  ;;
 end
 
 module Network = struct
@@ -72,31 +92,34 @@ module Network = struct
 
     include Comparable.Make (T)
 
-    let rec make_article_pairs_from_list
-              (url : string)
-              (depth : int)
-              (url_pairs : (string * string) list)
-      =
-      ignore url;
+    let make_connections_from_list = ()
+
+    let get_pairs_of_linked_articles origin ~how_to_fetch depth =
+      ignore origin;
+      ignore how_to_fetch;
       ignore depth;
-      ignore url_pairs;
       failwith "TODO"
     ;;
 
-    let of_string s depth =
-      ignore depth;
-      let list_of_links = get_linked_articles s in
-      ignore list_of_links;
+    let of_string s =
+      ignore s;
       failwith "TODO"
     ;;
   end
 
   type t = Connection.Set.t [@@deriving sexp_of]
 
-  let of_contents contents depth =
-    ignore contents;
-    ignore depth;
-    failwith "TODO"
+  let of_url
+        (url : string)
+        (depth : int)
+        ~(how_to_fetch : File_fetcher.How_to_fetch.t)
+    =
+    let connections =
+      List.concat_map
+        (Connection.get_pairs_of_linked_articles url ~how_to_fetch depth)
+        ~f:(fun (a, b) -> [ a, b; b, a ])
+    in
+    Connection.Set.of_list connections
   ;;
 end
 
