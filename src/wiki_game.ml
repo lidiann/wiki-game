@@ -67,12 +67,21 @@ let get_contents_from_url
 
 let get_title_from_contents contents =
   let open Soup in
-  parse contents $ "title" |> R.leaf_text
+  let title = parse contents $ "title" |> R.leaf_text in
+  match String.chop_suffix title ~suffix:" - Wikipedia" with
+  | None -> ""
+  | Some title ->
+    String.map title ~f:(fun a ->
+      if Char.equal a '.' || Char.equal a ' ' then '_' else a)
+    |> String.map ~f:(fun a ->
+      if Char.equal a '(' || Char.equal a ')' then '_' else a)
 ;;
 
-module Articles_Links = struct
-  type t = string * string list [@@deriving compare, sexp]
+module Links = struct
+  type t = string * string list [@@deriving compare, sexp, hash, equal]
 end
+
+module Links_Sets = Hash_set.Make (Links)
 
 module Article = struct
   type t =
@@ -95,37 +104,40 @@ module Network = struct
     end
 
     include Comparable.Make (T)
-    include Hash_set.Make (Articles_Links)
+
+    let get_connections_from_list
+          (list : Links.t list)
+          ~(how_to_fetch : File_fetcher.How_to_fetch.t)
+      =
+      List.concat_map list ~f:(fun (link, adjacent_links) ->
+        List.map adjacent_links ~f:(fun a_link ->
+          ( Article.make_into_article link ~how_to_fetch
+          , Article.make_into_article a_link ~how_to_fetch )))
+    ;;
 
     let get_pairs_of_linked_articles origin ~how_to_fetch depth =
-      ignore origin;
-      ignore how_to_fetch;
-      ignore depth;
-      let visited = Articles_Links.Hash_set.create () in
+      let visited = Links_Sets.create () in
       let to_visit = Queue.create () in
       Queue.enqueue to_visit origin;
       let rec traverse layer =
-        if Int.equal 0 layer || Option.is_none (Queue.dequeue to_visit)
-        then ()
-        else (
-          let current_node = Option.value_exn (Queue.dequeue to_visit) in
-          let adjacent_nodes =
-            get_linked_articles
-              (get_contents_from_url current_node ~how_to_fetch)
-          in
-          Hash_set.add visited (current_node, adjacent_nodes);
-          List.iter adjacent_nodes ~f:(fun next_node ->
-            Queue.enqueue to_visit next_node);
-          traverse (layer - 1))
+        match Queue.dequeue to_visit with
+        | None -> ()
+        | Some current_node ->
+          if Int.equal layer 0
+          then ()
+          else (
+            let adjacent_nodes =
+              get_linked_articles
+                (get_contents_from_url current_node ~how_to_fetch)
+            in
+            Hash_set.add visited (current_node, adjacent_nodes);
+            List.iter adjacent_nodes ~f:(fun next_node ->
+              Queue.enqueue to_visit next_node);
+            traverse (layer - 1))
       in
-      traverse depth
-    ;;
-
-    (* pairs_of_articles *)
-
-    let of_string s =
-      ignore s;
-      failwith "TODO"
+      traverse depth;
+      let pairs_list = Hash_set.to_list visited in
+      get_connections_from_list pairs_list ~how_to_fetch
     ;;
   end
 
@@ -145,17 +157,39 @@ module Network = struct
   ;;
 end
 
+module G = Graph.Imperative.Graph.Concrete (String)
+
+module Dot = Graph.Graphviz.Dot (struct
+    include G
+
+    (* These functions can be changed to tweak the appearance of the generated
+       graph. Check out the ocamlgraph graphviz API
+       (https://github.com/backtracking/ocamlgraph/blob/master/src/graphviz.mli) for
+       examples of what values can be set here. *)
+    let edge_attributes _ = [ `Dir `Back ]
+    let default_edge_attributes _ = []
+    let get_subgraph _ = None
+    let vertex_attributes v = [ `Shape `Box; `Label v; `Fillcolor 1000 ]
+    let vertex_name v = v
+    let default_vertex_attributes _ = []
+    let graph_attributes _ = []
+  end)
+
 (* [visualize] should explore all linked articles up to a distance of [max_depth] away
    from the given [origin] article, and output the result as a DOT file. It should use the
    [how_to_fetch] argument along with [File_fetcher] to fetch the articles so that the
    implementation can be tested locally on the small dataset in the ../resources/wiki
    directory. *)
 let visualize ?(max_depth = 3) ~origin ~output_file ~how_to_fetch () : unit =
-  ignore (max_depth : int);
-  ignore (origin : string);
-  ignore (output_file : File_path.t);
-  ignore (how_to_fetch : File_fetcher.How_to_fetch.t);
-  failwith "TODO"
+  let network = Network.of_url origin max_depth ~how_to_fetch in
+  let graph = G.create () in
+  Set.iter network ~f:(fun (article1, article2) ->
+    (* [G.add_edge] auomatically adds the endpoints as vertices in the graph if
+       they don't already exist. *)
+    G.add_edge graph article1.title article2.title);
+  Dot.output_graph
+    (Out_channel.create (File_path.to_string output_file))
+    graph
 ;;
 
 let visualize_command =
