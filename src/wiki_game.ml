@@ -126,9 +126,9 @@ module Network = struct
         List.iter adjacent_nodes ~f:(fun next_node ->
           if not (Int.equal layer 0) then dfs next_node (layer - 1))
       in
-      dfs origin (depth + 1);
+      dfs origin (depth - 1);
       let pairs_list = Hash_set.to_list visited in
-      get_connections_from_list pairs_list ~how_to_fetch
+      List.fold pairs_list get_connections_from_list pairs_list ~how_to_fetch
     ;;
   end
 
