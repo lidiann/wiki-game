@@ -117,25 +117,16 @@ module Network = struct
 
     let get_pairs_of_linked_articles origin ~how_to_fetch depth =
       let visited = Links_Sets.create () in
-      let to_visit = Queue.create () in
-      Queue.enqueue to_visit origin;
-      let rec traverse layer =
-        match Queue.dequeue to_visit with
-        | None -> ()
-        | Some current_node ->
-          if Int.equal layer 0
-          then ()
-          else (
-            let adjacent_nodes =
-              get_linked_articles
-                (get_contents_from_url current_node ~how_to_fetch)
-            in
-            Hash_set.add visited (current_node, adjacent_nodes);
-            List.iter adjacent_nodes ~f:(fun next_node ->
-              Queue.enqueue to_visit next_node);
-            traverse (layer - 1))
+      let rec dfs current_node layer : unit =
+        let adjacent_nodes =
+          get_linked_articles
+            (get_contents_from_url current_node ~how_to_fetch)
+        in
+        Hash_set.add visited (current_node, adjacent_nodes);
+        List.iter adjacent_nodes ~f:(fun next_node ->
+          if not (Int.equal layer 0) then dfs next_node (layer - 1))
       in
-      traverse depth;
+      dfs origin (depth + 1);
       let pairs_list = Hash_set.to_list visited in
       get_connections_from_list pairs_list ~how_to_fetch
     ;;
@@ -151,7 +142,7 @@ module Network = struct
     let connections =
       List.concat_map
         (Connection.get_pairs_of_linked_articles url ~how_to_fetch depth)
-        ~f:(fun (a, b) -> [ a, b; b, a ])
+        ~f:(fun (a, b) -> [ a, b ])
     in
     Connection.Set.of_list connections
   ;;
@@ -166,7 +157,7 @@ module Dot = Graph.Graphviz.Dot (struct
        graph. Check out the ocamlgraph graphviz API
        (https://github.com/backtracking/ocamlgraph/blob/master/src/graphviz.mli) for
        examples of what values can be set here. *)
-    let edge_attributes _ = [ `Dir `Back ]
+    let edge_attributes _ = [ `Dir `Forward ]
     let default_edge_attributes _ = []
     let get_subgraph _ = None
     let vertex_attributes v = [ `Shape `Box; `Label v; `Fillcolor 1000 ]
